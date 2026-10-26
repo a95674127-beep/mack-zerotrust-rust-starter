@@ -1,0 +1,13 @@
+[package]
+name = "mack-zerotrust-rust-starter"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Local-first zero-trust verification core in Rust: default-deny token policy with a SHA-256 hash-chained audit log. Community Edition starter from AI Infinity Force One."
+
+[dependencies]
+axum = "0.8"
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
