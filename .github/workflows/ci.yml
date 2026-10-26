@@ -1,1 +1,27 @@
+name: CI
 
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      # Step 1: Native GitHub Action (Zero 3rd-party risk)
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Step 2: Ensure system Rust toolchain is active
+      - name: Verify Rust environment
+        run: rustup show
+
+      # Step 3: Check formatting and compilation
+      - name: Run Cargo Check
+        run: cargo check --verbose
+
+      # Step 4: Run test suite
+      - name: Run Cargo Test
+        run: cargo test --verbose
