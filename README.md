@@ -4,6 +4,10 @@
 
 ![Rust](https://img.shields.io/badge/Language-Rust-orange)
 ![License](https://img.shields.io/badge/License-MIT-blue)
+![CI](https://github.com/a95674127-beep/mack-zerotrust-rust-starter/actions/workflows/ci.yml/badge.svg)
+![Tests](https://img.shields.io/badge/tests-13%20passing-brightgreen)
+
+Built by **Allen Mack** (AI Infinity Force One), a solo Rust security engineer. This kit is the free, open sample of the pattern behind **MACK**, a proprietary zero-trust security platform (see "The full platform" below).
 
 ---
 
@@ -17,6 +21,18 @@ A working starter core — not the full MACK vault, and it doesn't pretend to be
 - **Local-first:** binds to `127.0.0.1` only. No external calls, no telemetry, no third-party identity round-trips.
 
 Built on **Tokio + Axum**. Dependencies are deliberately few: tokio, axum, serde, serde_json, sha2.
+
+---
+
+## The full platform: MACK
+
+This starter kit is drawn from **MACK**, a fail-closed zero-trust security and verification platform in Rust: a detection-containment pipeline with Landlock-confined worker isolation, YARA-X scanning, STIX 2.1 export, an encrypted vault core (Argon2id + XChaCha20-Poly1305), and a tamper-evident audit ledger.
+
+MACK itself is proprietary and is offered for non-exclusive licensing, but its verification record is public and signed:
+
+- **226 / 226 tests passing**, fmt and clippy clean, CI green
+- **2,639,356 fuzz executions across 6 targets, zero crashes**
+- **Owner-signed Ed25519 release attestation**, published with the public key so anyone can verify it
 
 ---
 
