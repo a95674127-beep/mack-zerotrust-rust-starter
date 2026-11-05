@@ -34,6 +34,8 @@ MACK itself is proprietary and is offered for non-exclusive licensing, but its v
 - **2,639,356 fuzz executions across 6 targets, zero crashes**
 - **Owner-signed Ed25519 release attestation**, published with the public key so anyone can verify it
 
+→ **Verify it yourself:** the signed attestation, public key, evidence summary, and the one-command check are published at https://github.com/a95674127-beep/mack-verification
+
 ---
 
 ## 🚀 Quickstart (Community Edition)
