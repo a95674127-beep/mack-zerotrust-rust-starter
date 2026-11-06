@@ -109,4 +109,113 @@ mod tests {
         let second = chain.append("fp-two", true);
         assert_eq!(second.prev_hash, first_hash);
     }
+
+    // --- Tamper laboratory (adapted from the MACK vault's Phase 2 lab) ---
+    //
+    // The vault lab's cases, run against this kit's AuditChain API.
+    // `entries` is private; these tests live in-module precisely so
+    // they can perform the mutations an attacker with write access
+    // to the recorded history could perform.
+
+    fn three_entry_chain() -> AuditChain {
+        let mut chain = AuditChain::new();
+        chain.append("fp-one", true);
+        chain.append("fp-two", false);
+        chain.append("fp-three", true);
+        chain
+    }
+
+    #[test]
+    fn tamper_modify_fingerprint_is_detected() {
+        let mut chain = three_entry_chain();
+        chain.entries[1].fingerprint = "fp-forged".to_string();
+        assert!(!chain.verify_chain());
+    }
+
+    #[test]
+    fn tamper_delete_middle_entry_is_detected() {
+        let mut chain = three_entry_chain();
+        chain.entries.remove(1);
+        assert!(!chain.verify_chain());
+    }
+
+    #[test]
+    fn tamper_reorder_entries_is_detected() {
+        let mut chain = three_entry_chain();
+        chain.entries.swap(0, 1);
+        assert!(!chain.verify_chain());
+    }
+
+    #[test]
+    fn tamper_insert_forged_entry_is_detected() {
+        let mut chain = three_entry_chain();
+        // A forged entry with a made-up hash spliced into the middle.
+        chain.entries.insert(
+            1,
+            Entry {
+                index: 1,
+                prev_hash: chain.entries[0].hash.clone(),
+                fingerprint: "fp-forged".to_string(),
+                allowed: true,
+                hash: "0".repeat(64),
+            },
+        );
+        assert!(!chain.verify_chain());
+    }
+
+    #[test]
+    fn tamper_replay_valid_entry_is_detected() {
+        let mut chain = three_entry_chain();
+        // Replay entry 0 over entry 2's slot.
+        chain.entries[2] = chain.entries[0].clone();
+        assert!(!chain.verify_chain());
+    }
+
+    #[test]
+    fn tamper_corrupt_stored_hash_is_detected() {
+        let mut chain = three_entry_chain();
+        chain.entries[1].hash = "f".repeat(64);
+        assert!(!chain.verify_chain());
+    }
+
+    #[test]
+    fn tamper_corrupt_prev_hash_link_is_detected() {
+        let mut chain = three_entry_chain();
+        chain.entries[2].prev_hash = "0".repeat(64);
+        assert!(!chain.verify_chain());
+    }
+
+    #[test]
+    fn limitation_tail_truncation_is_not_detected() {
+        // KNOWN LIMITATION, pinned on purpose: chopping entries off
+        // the END leaves an internally valid prefix, so verify_chain
+        // alone cannot see it. Detection requires comparing `tip()`
+        // or `len()` against a value recorded outside the chain —
+        // the same external-anchoring gap the README states. If a
+        // future change makes truncation detectable in-chain, this
+        // test must be updated deliberately.
+        let mut chain = three_entry_chain();
+        chain.entries.pop();
+        assert_eq!(chain.len(), 2);
+        assert!(chain.verify_chain());
+    }
+
+    #[test]
+    fn limitation_whole_chain_rewrite_is_not_detected() {
+        // KNOWN LIMITATION, pinned on purpose: the chain is UNKEYED —
+        // anyone who knows the (public) hash construction can rewrite
+        // history and recompute every link, and the result verifies.
+        // The chain is tamper-EVIDENT against partial edits, not
+        // tamper-proof against a full rewrite; an externally anchored
+        // tip is the countermeasure, and is out of scope for this kit.
+        let mut chain = three_entry_chain();
+        chain.entries[0].allowed = false; // rewrite the first verdict
+        let mut prev = "GENESIS".to_string();
+        for e in chain.entries.iter_mut() {
+            e.prev_hash = prev.clone();
+            e.hash = entry_hash(e.index, &e.prev_hash, &e.fingerprint, e.allowed);
+            prev = e.hash.clone();
+        }
+        assert!(chain.verify_chain());
+    }
 }

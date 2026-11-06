@@ -5,7 +5,7 @@
 ![Rust](https://img.shields.io/badge/Language-Rust-orange)
 ![License](https://img.shields.io/badge/License-MIT-blue)
 ![CI](https://github.com/a95674127-beep/mack-zerotrust-rust-starter/actions/workflows/ci.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-13%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-22%20passing-brightgreen)
 
 Built by **Allen Mack** (AI Infinity Force One), a solo Rust security engineer. This kit is the free, open sample of the pattern behind **MACK**, a proprietary zero-trust security platform (see "The full platform" below).
 

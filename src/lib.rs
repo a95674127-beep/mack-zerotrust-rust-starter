@@ -73,7 +73,14 @@ async fn verify(
     let fp = policy::fingerprint(&req.token);
     let verdict = evaluate(&req.token, &fp);
     let (count, tip) = {
-        let mut chain = state.chain.lock().expect("audit chain lock poisoned");
+        // Poison recovery, matching the MACK vault's ConcurrentLedger
+        // policy: a panic while the lock was held must not wedge every
+        // later verification — take the chain as the panicked task
+        // left it and keep serving.
+        let mut chain = state
+            .chain
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         chain.append(&fp, verdict.allowed);
         (chain.len() as u64, chain.tip().to_string())
     };
