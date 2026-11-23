@@ -2,6 +2,17 @@
 
 All notable changes to the MACK Zero-Trust Rust Starter Kit (Community Edition) are recorded here. The format follows Keep a Changelog, and the project uses semantic versioning.
 
+## [0.2.0] — Unreleased
+
+### Added
+
+- **External audit checkpoints.** `AuditChain::checkpoint()` exports the chain's length and tip as a JSON-serializable `Checkpoint`; `AuditChain::verify_checkpoint()` compares the chain against a saved checkpoint and returns a `CheckpointVerdict` (`Match` / `Truncated` / `Rewritten` / `ChainInvalid`). Also served over HTTP at `GET /v1/audit/checkpoint`.
+- Tests for the checkpoint countermeasure, running the same truncation and whole-chain-rewrite attacks the limitation tests pin: both are now detected against a saved checkpoint. 30 tests in total.
+
+### Known limitations (unchanged, stated on purpose)
+
+- The chain **alone** still detects neither tail truncation nor a whole-chain rewrite — the pinned `limitation_*` tests stand as written. Checkpoints close the gap only when the checkpoint is stored somewhere an attacker cannot rewrite it along with the chain.
+
 ## [0.1.0] — 2026-11-21
 
 Initial open-source release of the Community Edition.

@@ -78,6 +78,29 @@ async fn bad_tokens_are_denied_by_default() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn checkpoint_endpoint_exports_length_and_tip() {
+    let port = spawn().await;
+    post_verify(port, "sample_local_token");
+    let second = post_verify(port, "another_sample_token");
+    let resp = http(
+        port,
+        "GET /v1/audit/checkpoint HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n",
+    );
+    assert!(resp.contains("200"), "response: {resp}");
+    assert!(resp.contains("\"length\":2"), "response: {resp}");
+    // The checkpoint tip must be the same tip the verify calls reported.
+    let tip = second
+        .split("\"audit_tip\":\"")
+        .nth(1)
+        .and_then(|s| s.split('"').next())
+        .expect("verify response carries audit_tip");
+    assert!(
+        resp.contains(&format!("\"tip\":\"{tip}\"")),
+        "response: {resp}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn every_verification_extends_the_audit_chain() {
     let port = spawn().await;
     let first = post_verify(port, "sample_local_token");

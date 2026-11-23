@@ -5,6 +5,10 @@
 //! - Every verification is fingerprinted (SHA-256) — the raw token is
 //!   never stored — and appended to a hash-chained audit log.
 //! - `GET /health` reports liveness.
+//! - `GET /v1/audit/checkpoint` exports the audit chain's length and
+//!   tip as JSON, so a caller can anchor them outside this process and
+//!   later detect tail truncation or a whole-chain rewrite (see
+//!   `audit::Checkpoint`).
 //!
 //! Scope, stated plainly: this is a *starter*. The Community policy is a
 //! structural/demo policy (shape, character set, and a sample revocation
@@ -24,7 +28,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use audit::AuditChain;
+use audit::{AuditChain, Checkpoint};
 use policy::evaluate;
 
 /// Lowercase hex SHA-256 of arbitrary bytes.
@@ -45,6 +49,7 @@ pub fn build_app() -> Router {
     Router::new()
         .route("/health", get(health))
         .route("/v1/verify", post(verify))
+        .route("/v1/audit/checkpoint", get(audit_checkpoint))
         .with_state(state)
 }
 
@@ -60,6 +65,14 @@ pub struct VerifyResponse {
     pub fingerprint: String,
     pub audit_entries: u64,
     pub audit_tip: String,
+}
+
+async fn audit_checkpoint(State(state): State<AppState>) -> Json<Checkpoint> {
+    let chain = state
+        .chain
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    Json(chain.checkpoint())
 }
 
 async fn health() -> Json<serde_json::Value> {

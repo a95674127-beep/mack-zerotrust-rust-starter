@@ -5,6 +5,8 @@
 //! is detectable by `verify_chain`. Only token fingerprints are stored —
 //! never raw tokens.
 
+use serde::{Deserialize, Serialize};
+
 use crate::sha256_hex;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -18,6 +20,60 @@ pub struct Entry {
 
 fn entry_hash(index: u64, prev_hash: &str, fingerprint: &str, allowed: bool) -> String {
     sha256_hex(format!("{index}|{prev_hash}|{fingerprint}|{allowed}").as_bytes())
+}
+
+/// An external anchor for the audit chain: its length and tip hash at
+/// a moment in time, serialized as JSON so it can be stored somewhere
+/// the chain itself cannot reach — another machine, a signed release
+/// note, a different trust domain.
+///
+/// The chain alone cannot detect tail truncation or a whole-chain
+/// rewrite (see the `limitation_*` tests). A checkpoint can — but only
+/// if the checkpoint itself is kept out of the attacker's hands. A
+/// checkpoint stored next to the chain, writable by the same attacker,
+/// anchors nothing: they would rewrite it along with the chain.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Checkpoint {
+    /// Number of entries in the chain when the checkpoint was taken.
+    pub length: u64,
+    /// Hash of the last entry at that moment ("GENESIS" when empty).
+    pub tip: String,
+}
+
+impl Checkpoint {
+    /// Serialize as JSON, e.g. `{"length":3,"tip":"<64 hex chars>"}`.
+    pub fn to_json(&self) -> String {
+        serde_json::to_string(self).expect("checkpoint serialization cannot fail")
+    }
+
+    /// Parse a checkpoint previously produced by `to_json`.
+    pub fn from_json(s: &str) -> Option<Checkpoint> {
+        serde_json::from_str(s).ok()
+    }
+}
+
+/// The outcome of comparing a chain against a stored `Checkpoint`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckpointVerdict {
+    /// The chain is internally valid and its entry at the checkpoint's
+    /// length still hashes to the checkpoint's tip. The chain may have
+    /// grown since the checkpoint; growth is not tampering.
+    Match,
+    /// The chain is now SHORTER than the checkpoint: entries were cut
+    /// off the end. Invisible to `verify_chain` alone — the surviving
+    /// prefix is internally valid — and exactly what the checkpoint
+    /// exists to catch.
+    Truncated,
+    /// The chain is at least as long as the checkpoint, but the entry
+    /// at the checkpoint's length no longer hashes to the checkpoint's
+    /// tip: the recorded history up to that point is a different
+    /// history than the one the checkpoint anchored — e.g. a
+    /// whole-chain rewrite with every link recomputed.
+    Rewritten,
+    /// The anchored prefix matches, but the chain as it now stands
+    /// fails `verify_chain`: entries were altered without recomputing
+    /// the links.
+    ChainInvalid,
 }
 
 #[derive(Debug, Default)]
@@ -75,6 +131,38 @@ impl AuditChain {
             prev = e.hash.clone();
         }
         true
+    }
+
+    /// Take a checkpoint of the chain as it stands: its length and tip,
+    /// ready to be stored outside the chain (see `Checkpoint`).
+    pub fn checkpoint(&self) -> Checkpoint {
+        Checkpoint {
+            length: self.len() as u64,
+            tip: self.tip().to_string(),
+        }
+    }
+
+    /// Compare the chain against a checkpoint taken earlier. This is
+    /// the comparison `verify_chain` cannot make on its own: it detects
+    /// tail truncation and whole-chain rewrites, provided the
+    /// checkpoint was stored where an attacker could not rewrite it
+    /// along with the chain.
+    pub fn verify_checkpoint(&self, cp: &Checkpoint) -> CheckpointVerdict {
+        if (self.len() as u64) < cp.length {
+            return CheckpointVerdict::Truncated;
+        }
+        let anchored_tip = if cp.length == 0 {
+            "GENESIS"
+        } else {
+            self.entries[(cp.length - 1) as usize].hash.as_str()
+        };
+        if anchored_tip != cp.tip {
+            return CheckpointVerdict::Rewritten;
+        }
+        if !self.verify_chain() {
+            return CheckpointVerdict::ChainInvalid;
+        }
+        CheckpointVerdict::Match
     }
 }
 
@@ -217,5 +305,100 @@ mod tests {
             prev = e.hash.clone();
         }
         assert!(chain.verify_chain());
+    }
+
+    // --- External checkpoints ---
+    //
+    // The countermeasure the two limitation tests above point at:
+    // record the chain's length + tip somewhere outside the chain,
+    // then compare later. These tests run the SAME attacks the
+    // limitation tests pin as undetectable in-chain, and show the
+    // checkpoint catching them. The limitation tests stay as they
+    // are: the raw chain alone still cannot do this.
+
+    #[test]
+    fn checkpoint_matches_the_chain_it_was_taken_from() {
+        let chain = three_entry_chain();
+        let cp = chain.checkpoint();
+        assert_eq!(cp.length, 3);
+        assert_eq!(cp.tip, chain.tip());
+        assert_eq!(chain.verify_checkpoint(&cp), CheckpointVerdict::Match);
+    }
+
+    #[test]
+    fn checkpoint_still_matches_after_the_chain_grows() {
+        // A checkpoint anchors a prefix, not a final state: later
+        // appends are growth, not tampering.
+        let mut chain = three_entry_chain();
+        let cp = chain.checkpoint();
+        chain.append("fp-four", true);
+        assert_eq!(chain.verify_checkpoint(&cp), CheckpointVerdict::Match);
+    }
+
+    #[test]
+    fn checkpoint_detects_tail_truncation() {
+        // The attack limitation_tail_truncation_is_not_detected pins
+        // as invisible to verify_chain alone.
+        let mut chain = three_entry_chain();
+        let cp = chain.checkpoint();
+        chain.entries.pop();
+        assert!(chain.verify_chain()); // still invisible in-chain
+        assert_eq!(chain.verify_checkpoint(&cp), CheckpointVerdict::Truncated);
+    }
+
+    #[test]
+    fn checkpoint_detects_whole_chain_rewrite() {
+        // The attack limitation_whole_chain_rewrite_is_not_detected
+        // pins: rewrite history, recompute every link, and the result
+        // verifies in-chain...
+        let mut chain = three_entry_chain();
+        let cp = chain.checkpoint();
+        chain.entries[0].allowed = false;
+        let mut prev = "GENESIS".to_string();
+        for e in chain.entries.iter_mut() {
+            e.prev_hash = prev.clone();
+            e.hash = entry_hash(e.index, &e.prev_hash, &e.fingerprint, e.allowed);
+            prev = e.hash.clone();
+        }
+        assert!(chain.verify_chain());
+        // ...but the rewritten head at the anchored length no longer
+        // equals the tip the checkpoint recorded.
+        assert_eq!(chain.verify_checkpoint(&cp), CheckpointVerdict::Rewritten);
+    }
+
+    #[test]
+    fn checkpoint_detects_internal_corruption() {
+        // An edit that does NOT recompute the links leaves the stored
+        // tip untouched, so the prefix still matches the checkpoint —
+        // and the internal check is what catches it.
+        let mut chain = three_entry_chain();
+        let cp = chain.checkpoint();
+        chain.entries[1].fingerprint = "fp-forged".to_string();
+        assert_eq!(
+            chain.verify_checkpoint(&cp),
+            CheckpointVerdict::ChainInvalid
+        );
+    }
+
+    #[test]
+    fn checkpoint_json_round_trips() {
+        let chain = three_entry_chain();
+        let cp = chain.checkpoint();
+        let json = cp.to_json();
+        let back = Checkpoint::from_json(&json).expect("valid checkpoint json");
+        assert_eq!(cp, back);
+        assert_eq!(chain.verify_checkpoint(&back), CheckpointVerdict::Match);
+    }
+
+    #[test]
+    fn empty_chain_checkpoint_anchors_genesis() {
+        // A checkpoint of an empty chain records length 0 / "GENESIS".
+        // It anchors nothing yet — stated plainly so nobody mistakes
+        // it for protection.
+        let chain = AuditChain::new();
+        let cp = chain.checkpoint();
+        assert_eq!(cp.length, 0);
+        assert_eq!(cp.tip, "GENESIS");
+        assert_eq!(chain.verify_checkpoint(&cp), CheckpointVerdict::Match);
     }
 }

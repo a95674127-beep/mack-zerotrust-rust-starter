@@ -5,7 +5,7 @@
 ![Rust](https://img.shields.io/badge/Language-Rust-orange)
 ![License](https://img.shields.io/badge/License-MIT-blue)
 ![CI](https://github.com/a95674127-beep/mack-zerotrust-rust-starter/actions/workflows/ci.yml/badge.svg)
-![Tests](https://img.shields.io/badge/tests-22%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-30%20passing-brightgreen)
 
 Built by **Allen Mack** (AI Infinity Force One), a solo Rust security engineer. This kit is the free, open sample of the pattern behind **MACK**, a proprietary zero-trust security platform (see "The full platform" below).
 
@@ -18,6 +18,7 @@ A working starter core — not the full MACK vault, and it doesn't pretend to be
 - **Default-deny policy:** a token verifies only if it passes every rule — non-empty, minimum length (16), strict character set (`A–Z a–z 0–9 _ -`), and not on the revocation list. Any failure denies, with a named reason.
 - **Fingerprinting:** tokens are never stored or logged. Only their SHA-256 fingerprint travels with the verdict.
 - **Hash-chained audit log:** every verification appends an entry whose hash binds it to the entry before it. Edit, drop, or reorder history and the chain no longer verifies.
+- **External checkpoints:** export the chain's length + tip as JSON and store it somewhere else. Compared against a saved checkpoint, the two attacks the raw chain cannot see — chopping entries off the end, and rewriting the whole history — become detectable. See "Audit checkpoints" below.
 - **Local-first:** binds to `127.0.0.1` only. No external calls, no telemetry, no third-party identity round-trips.
 
 Built on **Tokio + Axum**. Dependencies are deliberately few: tokio, axum, serde, serde_json, sha2.
@@ -88,6 +89,29 @@ cargo test
 
 ---
 
+## Audit checkpoints
+
+The hash chain proves history wasn't edited *in the middle*. Two attacks stay invisible to the chain alone, and the test suite pins both on purpose (`limitation_tail_truncation_is_not_detected`, `limitation_whole_chain_rewrite_is_not_detected`):
+
+- **Tail truncation** — chopping entries off the end leaves an internally valid prefix.
+- **Whole-chain rewrite** — the chain is unkeyed, so anyone can rewrite history and recompute every link.
+
+A **checkpoint** is the countermeasure: a tiny JSON record of the chain's length and tip hash at a moment in time.
+
+```bash
+curl http://127.0.0.1:8080/v1/audit/checkpoint
+```
+
+```json
+{ "length": 2, "tip": "ed24488e9772360376d6c0a1201ebe3b26535e1d4196acb76bb5c7a3bca6c08f" }
+```
+
+Store that JSON somewhere the chain cannot reach, and later compare the chain against it (`AuditChain::verify_checkpoint` in the library). The verdict names what happened: `Match` (the anchored history is intact; the chain may have grown), `Truncated` (entries are gone from the end), `Rewritten` (the entry at the anchored length no longer hashes to the recorded tip), or `ChainInvalid` (entries were altered without recomputing the links).
+
+**The honest limit:** a checkpoint only helps if it is stored somewhere an attacker cannot rewrite it along with the chain — another machine, a signed note, a different trust domain. A checkpoint kept next to the chain, writable by the same attacker, anchors nothing: they would rewrite it too. This kit gives you the anchor; where you plant it is the security decision.
+
+---
+
 ## 💎 Community Edition vs. Pro Kit
 
 The Community Edition in this repo is complete and free. The Pro Kit is **in development — it is not for sale yet**, and there is no buy link until it exists.
@@ -105,7 +129,7 @@ The Community Edition in this repo is complete and free. The Pro Kit is **in dev
 
 ## 🔒 Security notes
 
-- The audit chain is tamper-**evident**, not tamper-proof: it detects edited history; it does not stop someone with write access from rewriting the whole chain. That distinction matters and is stated on purpose.
+- The audit chain is tamper-**evident**, not tamper-proof: it detects edited history; it does not stop someone with write access from rewriting the whole chain. That distinction matters and is stated on purpose. Checkpoints (above) make truncation and whole-chain rewrites *detectable* — provided the checkpoint itself is stored out of the attacker's reach.
 - The revocation list ships with one sample entry so the mechanism is visible; a production deployment loads its own.
 - CI uses **only GitHub-owned actions** (`actions/checkout`) plus the runner's preinstalled Rust toolchain — no third-party actions, per the AI Infinity Force One Actions policy.
 
