@@ -87,6 +87,15 @@ Run the tests (policy unit tests, audit-chain tamper tests, and live HTTP tests 
 cargo test
 ```
 
+Prefer the library over HTTP? Two runnable examples use the policy and
+the audit chain (with checkpoints) directly — see
+[`examples/`](examples/README.md):
+
+```bash
+cargo run --example verify_token
+cargo run --example audit_checkpoint
+```
+
 ---
 
 ## Audit checkpoints
@@ -131,7 +140,7 @@ The Community Edition in this repo is complete and free. The Pro Kit is **in dev
 
 - The audit chain is tamper-**evident**, not tamper-proof: it detects edited history; it does not stop someone with write access from rewriting the whole chain. That distinction matters and is stated on purpose. Checkpoints (above) make truncation and whole-chain rewrites *detectable* — provided the checkpoint itself is stored out of the attacker's reach.
 - The revocation list ships with one sample entry so the mechanism is visible; a production deployment loads its own.
-- CI uses **only GitHub-owned actions** (`actions/checkout`) plus the runner's preinstalled Rust toolchain — no third-party actions, per the AI Infinity Force One Actions policy.
+- CI (`.github/workflows/ci.yml`) runs on `actions/checkout` and the `dtolnay/rust-toolchain` action; a separate workflow (`.github/workflows/gitleaks.yml`) runs the `gitleaks/gitleaks-action` secret scan over the full history.
 
 To report security issues, contact: **AI Infinity Force One Security Team**.
 

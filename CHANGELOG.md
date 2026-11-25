@@ -8,6 +8,8 @@ All notable changes to the MACK Zero-Trust Rust Starter Kit (Community Edition) 
 
 - **External audit checkpoints.** `AuditChain::checkpoint()` exports the chain's length and tip as a JSON-serializable `Checkpoint`; `AuditChain::verify_checkpoint()` compares the chain against a saved checkpoint and returns a `CheckpointVerdict` (`Match` / `Truncated` / `Rewritten` / `ChainInvalid`). Also served over HTTP at `GET /v1/audit/checkpoint`.
 - Tests for the checkpoint countermeasure, running the same truncation and whole-chain-rewrite attacks the limitation tests pin: both are now detected against a saved checkpoint. 30 tests in total.
+- **Runnable library examples** in `examples/`: `verify_token` (default-deny policy used directly) and `audit_checkpoint` (audit chain + checkpoint verdicts), alongside the existing `quickstart.sh` HTTP tour.
+- Documentation brought in line with the code: `THREAT_MODEL.md` covers the checkpoint endpoint and countermeasure, `SBOM.md` reflects v0.2.0, `SECURITY.md` names the checkpoint countermeasure and supports v0.2.0, and the README's CI description now names the actions the workflows actually use.
 
 ### Known limitations (unchanged, stated on purpose)
 

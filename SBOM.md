@@ -1,8 +1,8 @@
 # SBOM — MACK Zero-Trust Rust Starter Kit (Community Edition)
 
-Software bill of materials for `mack-zerotrust-rust-starter` v0.1.0: every package in the locked dependency graph, with the license each package declares for itself.
+Software bill of materials for `mack-zerotrust-rust-starter` v0.2.0: every package in the locked dependency graph, with the license each package declares for itself.
 
-Generated from `Cargo.lock` via `cargo metadata --locked` on 2026-11-06. 69 locked packages (including the root crate); license resolved for 69 of 69 from each package's own manifest metadata.
+Generated from `Cargo.lock` via `cargo metadata --locked` on 2026-11-06; re-verified against the locked graph on 2026-11-25 (the v0.2.0 bump changed no dependencies — only the root crate's own version). 69 locked packages (including the root crate); license resolved for 69 of 69 from each package's own manifest metadata.
 
 | Package | Version | License |
 |---|---|---|
@@ -33,7 +33,7 @@ Generated from `Cargo.lock` via `cargo metadata --locked` on 2026-11-06. 69 lock
 | libc | 0.2.191 | MIT OR Apache-2.0 |
 | lock_api | 0.4.14 | MIT OR Apache-2.0 |
 | log | 0.4.34 | MIT OR Apache-2.0 |
-| mack-zerotrust-rust-starter *(this crate)* | 0.1.0 | MIT |
+| mack-zerotrust-rust-starter *(this crate)* | 0.2.0 | MIT |
 | matchit | 0.8.4 | MIT AND BSD-3-Clause |
 | memchr | 2.8.3 | Unlicense OR MIT |
 | mime | 0.3.17 | MIT OR Apache-2.0 |

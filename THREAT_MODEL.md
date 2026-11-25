@@ -24,11 +24,18 @@ Every statement below traces to this repo's code or README.
 
 ```
 HTTP caller ──► Axum router (127.0.0.1:8080, main.rs)
-                  ├─ GET  /health     — no state
-                  └─ POST /v1/verify  — policy::evaluate (default-deny)
+                  ├─ GET  /health              — no state
+                  ├─ GET  /v1/audit/checkpoint — read-only checkpoint export
+                  └─ POST /v1/verify           — policy::evaluate (default-deny)
                                         └─► AuditChain behind Arc<Mutex<_>>
                                             (in-memory only; src/audit.rs)
 ```
+
+- **The checkpoint endpoint is read-only and equally unauthenticated.**
+  `GET /v1/audit/checkpoint` exports the chain's length and tip — the
+  same values a verify response already returns — so a caller can store
+  them outside this process and later detect truncation or a rewrite
+  (see Limitations 1–2). It exposes no fingerprints and mutates nothing.
 
 - **The HTTP boundary is unauthenticated by design.** Anyone who can
   reach the port can request a verification. The node binds loopback
@@ -76,6 +83,7 @@ Out of scope:
 | Corrupted stored hash or `prev_hash` field | Same recomputation detects either | tamper-lab tests |
 | Panic while the audit lock is held wedges the node | Mutex poison recovery (`into_inner()`), the MACK vault's ConcurrentLedger policy: keep serving with the chain as left | `src/lib.rs` |
 | Revoked token accepted | Revocation check against the sample list by fingerprint | `policy::is_revoked` |
+| Tail truncation / whole-chain rewrite presented as genuine | External checkpoint: `AuditChain::verify_checkpoint` compares the chain against a saved length + tip and returns `Truncated` / `Rewritten` / `ChainInvalid` / `Match` | `src/audit.rs` — checkpoint tests in that module; export at `GET /v1/audit/checkpoint` |
 
 ## Stated limitations (not bugs — the honest edges of the design)
 
@@ -83,12 +91,19 @@ Out of scope:
    construction can rewrite history *and recompute every link*, and
    the forged chain verifies. Pinned by
    `limitation_whole_chain_rewrite_is_not_detected` so the property is
-   never overstated. Countermeasure — an externally anchored tip —
-   belongs to the full platform pattern, not this kit.
+   never overstated. The countermeasure ships in this kit as an
+   **external checkpoint** (`AuditChain::checkpoint` /
+   `verify_checkpoint`, exported at `GET /v1/audit/checkpoint`): a
+   rewrite changes the hash of the entry at the checkpoint's length,
+   so it no longer equals the recorded tip and the verdict is
+   `Rewritten`. It works only if the checkpoint itself is stored where
+   the attacker cannot rewrite it along with the chain.
 2. **Tail truncation is invisible to `verify_chain()` alone.** A
    shortened chain is an internally valid prefix; detection requires
    comparing `tip()`/`len()` against a value kept outside the chain.
-   Pinned by `limitation_tail_truncation_is_not_detected`.
+   Pinned by `limitation_tail_truncation_is_not_detected`. The same
+   checkpoint comparison catches it: a chain shorter than its
+   checkpoint returns the `Truncated` verdict.
 3. **Tamper-evident ≠ tamper-proof** (as the README states): the chain
    detects partial edits; it cannot prevent a rewrite by someone with
    write access to the history.

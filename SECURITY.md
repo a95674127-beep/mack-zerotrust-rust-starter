@@ -49,13 +49,16 @@ verification, the tamper-evident audit log, and the HTTP API.
 **Known design limits (documented, not vulnerabilities):** the audit log's
 hash chain is unkeyed — it is tamper-evident, not tamper-proof. Tail
 truncation and whole-chain rewrites are not detectable from the chain alone;
-compare the chain tip against a value held outside the chain. See
-`THREAT_MODEL.md` for the full model.
+the kit's countermeasure is an external checkpoint — compare the chain
+against a saved length + tip with `AuditChain::verify_checkpoint` (exported
+at `GET /v1/audit/checkpoint`), stored somewhere an attacker cannot rewrite
+it along with the chain. See `THREAT_MODEL.md` for the full model.
 
 ## Supported versions
 
 | Version | Supported |
 |---|---|
+| v0.2.0 — Community Edition | Yes |
 | v0.1.0 — Community Edition | Yes |
 | Earlier / unreleased | Best effort |
 

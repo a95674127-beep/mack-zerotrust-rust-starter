@@ -295,7 +295,9 @@ mod tests {
         // history and recompute every link, and the result verifies.
         // The chain is tamper-EVIDENT against partial edits, not
         // tamper-proof against a full rewrite; an externally anchored
-        // tip is the countermeasure, and is out of scope for this kit.
+        // tip is the countermeasure — shipped in this kit as
+        // `Checkpoint` / `verify_checkpoint` (see the checkpoint tests
+        // below, which run this same rewrite and catch it).
         let mut chain = three_entry_chain();
         chain.entries[0].allowed = false; // rewrite the first verdict
         let mut prev = "GENESIS".to_string();
